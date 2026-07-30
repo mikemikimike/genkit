@@ -34,20 +34,12 @@ func listActions(ctx context.Context, client *genai.Client, provider string) []a
 
 	// Gemini models
 	for _, name := range models.gemini {
-		opts := GetModelOptions(name, provider)
-		model := newModel(client, name, opts)
-		if actionDef, ok := model.(api.Action); ok {
-			actions = append(actions, actionDef.Desc())
-		}
+		actions = append(actions, newModel(client, name, GetModelOptions(name, provider)).Desc())
 	}
 
 	// Imagen models
 	for _, name := range models.imagen {
-		opts := GetModelOptions(name, provider)
-		model := newModel(client, name, opts)
-		if actionDef, ok := model.(api.Action); ok {
-			actions = append(actions, actionDef.Desc())
-		}
+		actions = append(actions, newModel(client, name, GetModelOptions(name, provider)).Desc())
 	}
 
 	// Veo models (background models)
@@ -88,8 +80,7 @@ func resolveAction(client *genai.Client, provider string, atype api.ActionType, 
 		if mt == ModelTypeVeo {
 			return nil
 		}
-		opts := GetModelOptions(name, provider)
-		return newModel(client, name, opts).(api.Action)
+		return newModel(client, name, GetModelOptions(name, provider))
 
 	case api.ActionTypeBackgroundModel:
 		if mt != ModelTypeVeo {
