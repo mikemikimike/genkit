@@ -299,53 +299,6 @@ func applyStrictMetadata(metadata map[string]any, strict *bool) {
 	toolMeta[toolStrictKey] = *strict
 }
 
-// DefineTool creates a new [ToolDef] and registers it.
-// Use [WithInputSchema] to provide a custom JSON schema instead of inferring from the type parameter.
-func DefineTool[In, Out any](
-	r api.Registry,
-	name, description string,
-	fn ToolFunc[In, Out],
-	opts ...ToolOption,
-) *ToolDef[In, Out] {
-	toolOpts := &toolOptions{}
-	for _, opt := range opts {
-		if err := opt.applyTool(toolOpts); err != nil {
-			panic(fmt.Errorf("ai.DefineTool %q: %w", name, err))
-		}
-	}
-
-	// If the user provided a custom input schema, enforce that In is 'any'
-	if toolOpts.InputSchema != nil {
-		typ := reflect.TypeFor[*In]()
-		if typ != nil && typ.Elem().Kind() != reflect.Interface {
-			panic(fmt.Errorf("ai.DefineTool %q: WithInputSchema requires In to be of type 'any', but got %v", name, typ.Elem()))
-		}
-	}
-
-	metadata, wrappedFn := wrapToolFunc(name, description, fn)
-	applyStrictMetadata(metadata, toolOpts.StrictSchema)
-	action := core.NewActionOf(api.ActionTypeToolV2, name, &core.ActionOptions{Metadata: metadata, InputSchema: toolOpts.InputSchema}, wrappedFn)
-	action.Register(r)
-
-	// Also register under the "tool" action type for backward compatibility.
-	provider, id := api.ParseName(name)
-	r.RegisterAction(api.NewKey(api.ActionTypeTool, provider, id), action)
-
-	return &ToolDef[In, Out]{action: action, multipart: false, registry: r}
-}
-
-// DefineToolWithInputSchema creates a new [ToolDef] with a custom input schema and registers it.
-//
-// Deprecated: Use [DefineTool] with [WithInputSchema] instead.
-func DefineToolWithInputSchema[Out any](
-	r api.Registry,
-	name, description string,
-	inputSchema map[string]any,
-	fn ToolFunc[any, Out],
-) *ToolDef[any, Out] {
-	return DefineTool(r, name, description, fn, WithInputSchema(inputSchema))
-}
-
 // NewTool creates a new [ToolDef]. It can be passed directly to [Generate].
 // Use [WithInputSchema] to provide a custom JSON schema instead of inferring from the type parameter.
 func NewTool[In, Out any](name, description string, fn ToolFunc[In, Out], opts ...ToolOption) *ToolDef[In, Out] {
@@ -377,29 +330,6 @@ func NewTool[In, Out any](name, description string, fn ToolFunc[In, Out], opts .
 // Deprecated: Use [NewTool] with [WithInputSchema] instead.
 func NewToolWithInputSchema[Out any](name, description string, inputSchema map[string]any, fn ToolFunc[any, Out]) *ToolDef[any, Out] {
 	return NewTool(name, description, fn, WithInputSchema(inputSchema))
-}
-
-// DefineMultipartTool creates a new multipart [ToolDef] and registers it.
-// Multipart tools can return both output data and additional content parts (like media).
-// Use [WithInputSchema] to provide a custom JSON schema instead of inferring from the type parameter.
-func DefineMultipartTool[In any](
-	r api.Registry,
-	name, description string,
-	fn MultipartToolFunc[In],
-	opts ...ToolOption,
-) *ToolDef[In, *MultipartToolResponse] {
-	toolOpts := &toolOptions{}
-	for _, opt := range opts {
-		if err := opt.applyTool(toolOpts); err != nil {
-			panic(fmt.Errorf("ai.DefineMultipartTool %q: %w", name, err))
-		}
-	}
-
-	metadata, wrappedFn := wrapMultipartToolFunc(name, description, fn)
-	applyStrictMetadata(metadata, toolOpts.StrictSchema)
-	action := core.NewActionOf(api.ActionTypeToolV2, name, &core.ActionOptions{Metadata: metadata, InputSchema: toolOpts.InputSchema}, wrappedFn)
-	action.Register(r)
-	return &ToolDef[In, *MultipartToolResponse]{action: action, multipart: true, registry: r}
 }
 
 // NewMultipartTool creates a new multipart [ToolDef]. It can be passed directly to [Generate].

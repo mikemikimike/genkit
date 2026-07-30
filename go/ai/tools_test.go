@@ -137,7 +137,7 @@ func (e *wrappedInterruptError) Unwrap() error {
 func TestDefineTool(t *testing.T) {
 	t.Run("creates and registers tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/addNumbers", "Adds two numbers", func(ctx *ToolContext, input struct {
+		tl := defineTool(r, "provider/addNumbers", "Adds two numbers", func(ctx *ToolContext, input struct {
 			A int `json:"a"`
 			B int `json:"b"`
 		}) (int, error) {
@@ -159,7 +159,7 @@ func TestDefineTool(t *testing.T) {
 
 	t.Run("tool can be looked up after registration", func(t *testing.T) {
 		r := newTestRegistry(t)
-		DefineTool(r, "provider/multiply", "Multiplies", func(ctx *ToolContext, input struct {
+		defineTool(r, "provider/multiply", "Multiplies", func(ctx *ToolContext, input struct {
 			X int `json:"x"`
 			Y int `json:"y"`
 		}) (int, error) {
@@ -174,7 +174,7 @@ func TestDefineTool(t *testing.T) {
 
 	t.Run("tool executes correctly", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/concat", "Concatenates strings", func(ctx *ToolContext, input struct {
+		tl := defineTool(r, "provider/concat", "Concatenates strings", func(ctx *ToolContext, input struct {
 			A string `json:"a"`
 			B string `json:"b"`
 		}) (string, error) {
@@ -206,7 +206,7 @@ func TestDefineToolWithInputSchema(t *testing.T) {
 			"required": []any{"query"},
 		}
 
-		tl := DefineToolWithInputSchema(r, "provider/search", "Searches", customSchema,
+		tl := defineToolWithInputSchema(r, "provider/search", "Searches", customSchema,
 			func(ctx *ToolContext, input any) (string, error) {
 				m := input.(map[string]any)
 				return "results for: " + m["query"].(string), nil
@@ -299,7 +299,7 @@ func TestNewToolWithInputSchema(t *testing.T) {
 func TestDefineMultipartTool(t *testing.T) {
 	t.Run("creates multipart tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "provider/imageGen", "Generates images",
+		tl := defineMultipartTool(r, "provider/imageGen", "Generates images",
 			func(ctx *ToolContext, input struct {
 				Prompt string `json:"prompt"`
 			}) (*MultipartToolResponse, error) {
@@ -327,7 +327,7 @@ func TestDefineMultipartTool(t *testing.T) {
 
 	t.Run("multipart tool returns parts", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "provider/multiOut", "Returns multiple parts",
+		tl := defineMultipartTool(r, "provider/multiOut", "Returns multiple parts",
 			func(ctx *ToolContext, input struct{}) (*MultipartToolResponse, error) {
 				return &MultipartToolResponse{
 					Output: map[string]any{"status": "ok"},
@@ -385,7 +385,7 @@ func TestNewMultipartTool(t *testing.T) {
 func TestToolDefinition(t *testing.T) {
 	t.Run("includes all fields", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/complete", "A complete tool", func(ctx *ToolContext, input struct {
+		tl := defineTool(r, "provider/complete", "A complete tool", func(ctx *ToolContext, input struct {
 			Query string `json:"query"`
 		}) (struct {
 			Result string `json:"result"`
@@ -431,7 +431,7 @@ func TestLookupTool(t *testing.T) {
 
 	t.Run("finds registered tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		DefineTool(r, "test/findMe", "Find me", func(ctx *ToolContext, input struct{}) (bool, error) {
+		defineTool(r, "test/findMe", "Find me", func(ctx *ToolContext, input struct{}) (bool, error) {
 			return true, nil
 		})
 
@@ -450,7 +450,7 @@ func TestWithStrictSchema(t *testing.T) {
 
 	t.Run("absent by default", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "strict/default", "no strict opt", func(ctx *ToolContext, input struct{}) (string, error) {
+		tl := defineTool(r, "strict/default", "no strict opt", func(ctx *ToolContext, input struct{}) (string, error) {
 			return "", nil
 		})
 		def := tl.Definition()
@@ -475,7 +475,7 @@ func TestWithStrictSchema(t *testing.T) {
 
 	t.Run("DefineTool with WithStrictSchema(true) is surfaced on Definition", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "strict/registered-true", "registered strict",
+		tl := defineTool(r, "strict/registered-true", "registered strict",
 			func(ctx *ToolContext, input struct{}) (string, error) { return "", nil },
 			WithStrictSchema(true),
 		)
@@ -484,7 +484,7 @@ func TestWithStrictSchema(t *testing.T) {
 
 	t.Run("DefineTool with WithStrictSchema(false) is surfaced on Definition", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "strict/registered-false", "registered loose",
+		tl := defineTool(r, "strict/registered-false", "registered loose",
 			func(ctx *ToolContext, input struct{}) (string, error) { return "", nil },
 			WithStrictSchema(false),
 		)
@@ -493,7 +493,7 @@ func TestWithStrictSchema(t *testing.T) {
 
 	t.Run("LookupTool round-trips the strict flag for registered tools", func(t *testing.T) {
 		r := newTestRegistry(t)
-		DefineTool(r, "strict/lookup-true", "registered strict",
+		defineTool(r, "strict/lookup-true", "registered strict",
 			func(ctx *ToolContext, input struct{}) (string, error) { return "", nil },
 			WithStrictSchema(true),
 		)
@@ -522,7 +522,7 @@ func TestWithStrictSchema(t *testing.T) {
 
 	t.Run("DefineMultipartTool plumbs strict the same way", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "strict/multipart", "multipart strict",
+		tl := defineMultipartTool(r, "strict/multipart", "multipart strict",
 			func(ctx *ToolContext, input struct{}) (*MultipartToolResponse, error) {
 				return &MultipartToolResponse{}, nil
 			},
@@ -547,7 +547,7 @@ func TestWithStrictSchema(t *testing.T) {
 			}
 		}()
 		r := newTestRegistry(t)
-		DefineTool(r, "strict/double-set", "double set",
+		defineTool(r, "strict/double-set", "double set",
 			func(ctx *ToolContext, input struct{}) (string, error) { return "", nil },
 			WithStrictSchema(true),
 			WithStrictSchema(false),
@@ -558,7 +558,7 @@ func TestWithStrictSchema(t *testing.T) {
 func TestToolIsMultipart(t *testing.T) {
 	t.Run("regular tool is not multipart", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/regular", "Regular tool", func(ctx *ToolContext, input struct{}) (string, error) {
+		tl := defineTool(r, "provider/regular", "Regular tool", func(ctx *ToolContext, input struct{}) (string, error) {
 			return "ok", nil
 		})
 
@@ -570,7 +570,7 @@ func TestToolIsMultipart(t *testing.T) {
 
 	t.Run("multipart tool is multipart", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "provider/multi", "Multi tool",
+		tl := defineMultipartTool(r, "provider/multi", "Multi tool",
 			func(ctx *ToolContext, input struct{}) (*MultipartToolResponse, error) {
 				return &MultipartToolResponse{}, nil
 			})
@@ -585,7 +585,7 @@ func TestToolIsMultipart(t *testing.T) {
 func TestToolRunRaw(t *testing.T) {
 	t.Run("returns output from regular tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/sum", "Sums numbers", func(ctx *ToolContext, input struct {
+		tl := defineTool(r, "provider/sum", "Sums numbers", func(ctx *ToolContext, input struct {
 			Nums []int `json:"nums"`
 		}) (int, error) {
 			sum := 0
@@ -610,7 +610,7 @@ func TestToolRunRaw(t *testing.T) {
 
 	t.Run("returns error from tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/fail", "Always fails", func(ctx *ToolContext, input struct{}) (string, error) {
+		tl := defineTool(r, "provider/fail", "Always fails", func(ctx *ToolContext, input struct{}) (string, error) {
 			return "", errors.New("intentional failure")
 		})
 
@@ -624,7 +624,7 @@ func TestToolRunRaw(t *testing.T) {
 func TestToolRunRawMultipart(t *testing.T) {
 	t.Run("returns full response from multipart tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "provider/fullResp", "Full response",
+		tl := defineMultipartTool(r, "provider/fullResp", "Full response",
 			func(ctx *ToolContext, input struct{}) (*MultipartToolResponse, error) {
 				return &MultipartToolResponse{
 					Output: "main output",
@@ -650,7 +650,7 @@ func TestToolRunRawMultipart(t *testing.T) {
 
 func TestToolRespond(t *testing.T) {
 	r := newTestRegistry(t)
-	tl := DefineTool(r, "provider/responder", "Test responder", func(ctx *ToolContext, input struct{}) (string, error) {
+	tl := defineTool(r, "provider/responder", "Test responder", func(ctx *ToolContext, input struct{}) (string, error) {
 		return "ok", nil
 	})
 
@@ -718,7 +718,7 @@ func TestToolRespond(t *testing.T) {
 
 func TestToolRestart(t *testing.T) {
 	r := newTestRegistry(t)
-	tl := DefineTool(r, "provider/restarter", "Test restarter", func(ctx *ToolContext, input struct {
+	tl := defineTool(r, "provider/restarter", "Test restarter", func(ctx *ToolContext, input struct {
 		Value int `json:"value"`
 	}) (int, error) {
 		return input.Value, nil
@@ -816,7 +816,7 @@ func TestToolRestart(t *testing.T) {
 func TestToolInterrupt(t *testing.T) {
 	t.Run("tool can interrupt execution", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/interrupter", "Can interrupt",
+		tl := defineTool(r, "provider/interrupter", "Can interrupt",
 			func(ctx *ToolContext, input struct {
 				ShouldInterrupt bool `json:"shouldInterrupt"`
 			}) (string, error) {
@@ -847,7 +847,7 @@ func TestToolInterrupt(t *testing.T) {
 
 	t.Run("tool completes without interrupt", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/noInterrupt", "No interrupt",
+		tl := defineTool(r, "provider/noInterrupt", "No interrupt",
 			func(ctx *ToolContext, input struct {
 				ShouldInterrupt bool `json:"shouldInterrupt"`
 			}) (string, error) {
@@ -880,7 +880,7 @@ func TestToolWithInputSchemaOption(t *testing.T) {
 			},
 		}
 
-		tl := DefineTool(r, "provider/customInput", "Custom input schema",
+		tl := defineTool(r, "provider/customInput", "Custom input schema",
 			func(ctx *ToolContext, input any) (string, error) {
 				m := input.(map[string]any)
 				return m["customField"].(string), nil
@@ -917,10 +917,10 @@ func TestToolWithInputSchemaOption(t *testing.T) {
 func TestResolveUniqueTools(t *testing.T) {
 	t.Run("resolves tools from registry", func(t *testing.T) {
 		r := newTestRegistry(t)
-		DefineTool(r, "provider/tool1", "Tool 1", func(ctx *ToolContext, input struct{}) (bool, error) {
+		defineTool(r, "provider/tool1", "Tool 1", func(ctx *ToolContext, input struct{}) (bool, error) {
 			return true, nil
 		})
-		DefineTool(r, "provider/tool2", "Tool 2", func(ctx *ToolContext, input struct{}) (bool, error) {
+		defineTool(r, "provider/tool2", "Tool 2", func(ctx *ToolContext, input struct{}) (bool, error) {
 			return true, nil
 		})
 
@@ -981,7 +981,7 @@ func TestResolveUniqueTools(t *testing.T) {
 func TestIsMultipart(t *testing.T) {
 	t.Run("returns false for standard tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineTool(r, "provider/standard", "Standard tool",
+		tl := defineTool(r, "provider/standard", "Standard tool",
 			func(ctx *ToolContext, input struct{}) (string, error) {
 				return "result", nil
 			})
@@ -1004,7 +1004,7 @@ func TestIsMultipart(t *testing.T) {
 
 	t.Run("returns true for multipart tool", func(t *testing.T) {
 		r := newTestRegistry(t)
-		tl := DefineMultipartTool(r, "provider/multipart", "Multipart tool",
+		tl := defineMultipartTool(r, "provider/multipart", "Multipart tool",
 			func(ctx *ToolContext, input struct{}) (*MultipartToolResponse, error) {
 				return &MultipartToolResponse{
 					Content: []*Part{NewTextPart("hello"), NewTextPart("world")},

@@ -571,7 +571,9 @@ func DefineTypedModel[Config any](g *Genkit, name string, opts *ai.ModelOptions,
 // Deprecated: Use [DefineTypedModel], which passes the request's config
 // to fn as a typed value instead of leaving it type-erased on the request.
 func DefineModel(g *Genkit, name string, opts *ai.ModelOptions, fn ai.ModelFunc) ai.Model {
-	return ai.DefineModel(g.reg, name, opts, fn)
+	m := ai.NewModel(name, opts, fn)
+	m.Register(g.reg)
+	return m
 }
 
 // DefineTypedBackgroundModel defines a background model, registers it as
@@ -597,7 +599,9 @@ func DefineTypedBackgroundModel[Config any](g *Genkit, name string, opts *ai.Bac
 // request's config to startFn as a typed value instead of leaving it
 // type-erased on the request.
 func DefineBackgroundModel(g *Genkit, name string, opts *ai.BackgroundModelOptions, startFn ai.StartModelOpFunc, checkFn ai.CheckModelOpFunc) ai.BackgroundModel {
-	return ai.DefineBackgroundModel(g.reg, name, opts, startFn, checkFn)
+	m := ai.NewBackgroundModel(name, opts, startFn, checkFn)
+	m.Register(g.reg)
+	return m
 }
 
 // LookupModel retrieves a registered [ai.Model] by its provider and name.
@@ -660,7 +664,9 @@ func LookupBackgroundModel(g *Genkit, name string) ai.BackgroundModel {
 //
 //	fmt.Println(resp.Text()) // Might output something like "The weather in Paris is Sunny, 25°C."
 func DefineTool[In, Out any](g *Genkit, name, description string, fn ai.ToolFunc[In, Out], opts ...ai.ToolOption) *ai.ToolDef[In, Out] {
-	return ai.DefineTool(g.reg, name, description, fn, opts...)
+	t := ai.NewTool(name, description, fn, opts...)
+	t.Register(g.reg)
+	return t
 }
 
 // DefineToolWithInputSchema defines a tool with a custom input schema that can be used by models during generation,
@@ -709,7 +715,9 @@ func DefineTool[In, Out any](g *Genkit, name, description string, fn ai.ToolFunc
 //		ai.WithToolInputSchema(inputSchema),
 //	)
 func DefineToolWithInputSchema[Out any](g *Genkit, name, description string, inputSchema map[string]any, fn ai.ToolFunc[any, Out]) *ai.ToolDef[any, Out] {
-	return ai.DefineTool(g.reg, name, description, fn, ai.WithInputSchema(inputSchema))
+	t := ai.NewTool(name, description, fn, ai.WithInputSchema(inputSchema))
+	t.Register(g.reg)
+	return t
 }
 
 // DefineMultipartTool defines a multipart tool that can be used by models during generation,
@@ -769,7 +777,9 @@ func DefineToolWithInputSchema[Out any](g *Genkit, name, description string, inp
 //
 //	fmt.Println(resp.Text())
 func DefineMultipartTool[In any](g *Genkit, name, description string, fn ai.MultipartToolFunc[In], opts ...ai.ToolOption) *ai.ToolDef[In, *ai.MultipartToolResponse] {
-	return ai.DefineMultipartTool(g.reg, name, description, fn, opts...)
+	t := ai.NewMultipartTool(name, description, fn, opts...)
+	t.Register(g.reg)
+	return t
 }
 
 // LookupTool retrieves a registered tool by its name.
@@ -831,7 +841,9 @@ func LookupTool(g *Genkit, name string) ai.Tool {
 //		ai.WithUse(Trace{Label: "debug"}),
 //	)
 func DefineMiddleware[M ai.Middleware](g *Genkit, description string, prototype M) *ai.MiddlewareDesc {
-	return ai.DefineMiddleware(g.reg, description, prototype)
+	d := ai.NewMiddleware(description, prototype)
+	d.Register(g.reg)
+	return d
 }
 
 // LookupMiddleware retrieves a registered middleware descriptor by its name.
@@ -1398,7 +1410,9 @@ func DefineTypedEmbedder[Config any](g *Genkit, name string, opts *ai.EmbedderOp
 // options to fn as a typed value instead of leaving them type-erased on the
 // request.
 func DefineEmbedder(g *Genkit, name string, opts *ai.EmbedderOptions, fn ai.EmbedderFunc) ai.Embedder {
-	return ai.DefineEmbedder(g.reg, name, opts, fn)
+	e := ai.NewEmbedder(name, opts, fn)
+	e.Register(g.reg)
+	return e
 }
 
 // LookupEmbedder retrieves a registered [ai.Embedder] by its provider and name.
@@ -1442,7 +1456,9 @@ func DefineTypedEvaluator[Config any](g *Genkit, name string, opts *ai.Evaluator
 // options to fn as a typed value instead of leaving them type-erased on the
 // request.
 func DefineEvaluator(g *Genkit, name string, opts *ai.EvaluatorOptions, fn ai.EvaluatorFunc) ai.Evaluator {
-	return ai.DefineEvaluator(g.reg, name, opts, fn)
+	e := ai.NewEvaluator(name, opts, fn)
+	e.Register(g.reg)
+	return e
 }
 
 // DefineTypedBatchEvaluator defines an evaluator that processes the
@@ -1469,7 +1485,9 @@ func DefineTypedBatchEvaluator[Config any](g *Genkit, name string, opts *ai.Eval
 // request's options to fn as a typed value instead of leaving them
 // type-erased on the request.
 func DefineBatchEvaluator(g *Genkit, name string, opts *ai.EvaluatorOptions, fn ai.BatchEvaluatorFunc) ai.Evaluator {
-	return ai.DefineBatchEvaluator(g.reg, name, opts, fn)
+	e := ai.NewBatchEvaluator(name, opts, fn)
+	e.Register(g.reg)
+	return e
 }
 
 // LookupEvaluator retrieves a registered [ai.Evaluator] by its provider and name.
@@ -1739,7 +1757,9 @@ func IsDefinedFormat(g *Genkit, name string) bool {
 //	  }, nil
 //	})
 func DefineResource(g *Genkit, name string, opts *ai.ResourceOptions, fn ai.ResourceFunc) ai.Resource {
-	return ai.DefineResource(g.reg, name, opts, fn)
+	res := ai.NewResource(name, opts, fn)
+	res.Register(g.reg)
+	return res
 }
 
 // FindMatchingResource finds a resource that matches the given URI.
