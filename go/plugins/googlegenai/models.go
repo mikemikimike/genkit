@@ -68,24 +68,33 @@ var (
 	}
 )
 
+// Config schemas advertised for each generation modality. Reflecting the SDK
+// config structs is expensive and every model of a modality advertises the
+// same read-only schema, so they are built once and shared.
+var (
+	geminiConfigSchema = configToMap(genai.GenerateContentConfig{})
+	imagenConfigSchema = configToMap(genai.GenerateImagesConfig{})
+	veoConfigSchema    = configToMap(genai.GenerateVideosConfig{})
+)
+
 // Default options for unknown models of each type.
 var (
 	defaultGeminiOpts = ai.ModelOptions{
 		Supports:     &Multimodal,
 		Stage:        ai.ModelStageUnstable,
-		ConfigSchema: configToMap(genai.GenerateContentConfig{}),
+		ConfigSchema: geminiConfigSchema,
 	}
 
 	defaultImagenOpts = ai.ModelOptions{
 		Supports:     &Media,
 		Stage:        ai.ModelStageUnstable,
-		ConfigSchema: configToMap(genai.GenerateImagesConfig{}),
+		ConfigSchema: imagenConfigSchema,
 	}
 
 	defaultVeoOpts = ai.ModelOptions{
 		Supports:     &VeoSupports,
 		Stage:        ai.ModelStageUnstable,
-		ConfigSchema: configToMap(genai.GenerateVideosConfig{}),
+		ConfigSchema: veoConfigSchema,
 	}
 
 	defaultEmbedOpts = ai.EmbedderOptions{
@@ -457,9 +466,7 @@ func GetModelOptions(name, provider string) ai.ModelOptions {
 	}
 
 	if opts.ConfigSchema == nil {
-		if cfg := mt.DefaultConfig(); cfg != nil {
-			opts.ConfigSchema = configToMap(cfg)
-		}
+		opts.ConfigSchema = mt.configSchema()
 	}
 
 	// Set label with provider prefix
