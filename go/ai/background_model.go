@@ -41,10 +41,21 @@ type BackgroundModel interface {
 	SupportsCancel() bool
 }
 
-// backgroundModel is the concrete implementation of BackgroundModel interface.
-type backgroundModel struct {
-	core.BackgroundAction[*ModelRequest, *ModelResponse]
+// backgroundAction is an unexported alias of [core.BackgroundAction] used as
+// the embedded field in [BackgroundModelAction]; see the action alias in
+// generate.go for why.
+type backgroundAction[In, Out any] = core.BackgroundAction[In, Out]
+
+// BackgroundModelAction is a background model backed by registry actions. It
+// is the concrete type returned by [NewTypedBackgroundModel]; return it from
+// a plugin's Init for the framework to register.
+type BackgroundModelAction struct {
+	backgroundAction[*ModelRequest, *ModelResponse]
 }
+
+// BackgroundModelAction can be passed anywhere a [BackgroundModel] is
+// accepted.
+var _ BackgroundModel = (*BackgroundModelAction)(nil)
 
 // ModelOperation is a background operation for a model.
 type ModelOperation = core.Operation[*ModelResponse]
@@ -79,16 +90,16 @@ func LookupBackgroundModel(r api.Registry, name string) BackgroundModel {
 	if action == nil {
 		return nil
 	}
-	return &backgroundModel{*action}
+	return &BackgroundModelAction{*action}
 }
 
-// NewTypedBackgroundModel creates a new [BackgroundModel]. Register it
-// with [BackgroundModel.Register] to make it resolvable by name.
+// NewTypedBackgroundModel creates a new [BackgroundModelAction]. Register it
+// with [BackgroundModelAction.Register] to make it resolvable by name.
 //
 // Config is the model's typed configuration; it is usually inferred from
 // startFn's signature. See [NewTypedModel] for how the request's config
 // is deserialized.
-func NewTypedBackgroundModel[Config any](name string, opts *BackgroundModelOptions, startFn TypedStartModelOpFunc[Config], checkFn CheckModelOpFunc) BackgroundModel {
+func NewTypedBackgroundModel[Config any](name string, opts *BackgroundModelOptions, startFn TypedStartModelOpFunc[Config], checkFn CheckModelOpFunc) *BackgroundModelAction {
 	if name == "" {
 		panic("ai.NewTypedBackgroundModel: name is required")
 	}
@@ -161,7 +172,7 @@ func NewTypedBackgroundModel[Config any](name string, opts *BackgroundModelOptio
 		return modelOpFromResponse(resp)
 	}
 
-	return &backgroundModel{*core.NewBackgroundActionOf(api.ActionTypeBackgroundModel, name, &core.BackgroundActionOptions{
+	return &BackgroundModelAction{*core.NewBackgroundActionOf(api.ActionTypeBackgroundModel, name, &core.BackgroundActionOptions{
 		Metadata:    metadata,
 		InputSchema: inputSchema,
 	}, wrappedFn, checkFn, opts.Cancel)}

@@ -81,10 +81,20 @@ func (e EvaluatorRef) Config() any {
 	return e.config
 }
 
-// evaluator is an action with functions specific to evaluating a dataset.
-type evaluator struct {
-	core.Action[*EvaluatorRequest, *EvaluatorResponse, struct{}]
+// EvaluatorAction is an evaluator backed by a registry action. It is the
+// concrete type returned by [NewTypedEvaluator] and [NewTypedBatchEvaluator];
+// pass it to [WithEvaluator], or return it from a plugin's Init for the
+// framework to register.
+type EvaluatorAction struct {
+	action[*EvaluatorRequest, *EvaluatorResponse, struct{}]
 }
+
+// EvaluatorAction is a full registry action and can be passed anywhere an
+// [api.Action] is accepted as well as anywhere an [Evaluator] is accepted.
+var (
+	_ api.Action = (*EvaluatorAction)(nil)
+	_ Evaluator  = (*EvaluatorAction)(nil)
+)
 
 // Example is a single example that requires evaluation
 type Example struct {
@@ -185,8 +195,8 @@ func evaluatorMetadata(opts *EvaluatorOptions) map[string]any {
 	}
 }
 
-// NewTypedEvaluator creates a new [Evaluator]. Register it with
-// [Evaluator.Register] to make it resolvable by name.
+// NewTypedEvaluator creates a new [EvaluatorAction]. Register it with
+// [EvaluatorAction.Register] to make it resolvable by name.
 // This method processes the input dataset one-by-one.
 //
 // Config is the evaluator's typed configuration; it is usually inferred from
@@ -195,7 +205,7 @@ func evaluatorMetadata(opts *EvaluatorOptions) map[string]any {
 // map[string]any (from the Dev UI and other JSON callers) are accepted, and
 // mismatched types are rejected. The config's JSON schema is inferred from
 // Config unless [EvaluatorOptions.ConfigSchema] overrides it.
-func NewTypedEvaluator[Config any](name string, opts *EvaluatorOptions, fn TypedEvaluatorFunc[Config]) Evaluator {
+func NewTypedEvaluator[Config any](name string, opts *EvaluatorOptions, fn TypedEvaluatorFunc[Config]) *EvaluatorAction {
 	if name == "" {
 		panic("ai.NewTypedEvaluator: evaluator name is required")
 	}
@@ -206,8 +216,8 @@ func NewTypedEvaluator[Config any](name string, opts *EvaluatorOptions, fn Typed
 
 	_, inputSchema := actionConfigSchemas[Config](opts.ConfigSchema, EvaluatorRequest{}, "options")
 
-	return &evaluator{
-		Action: *core.NewActionOf(api.ActionTypeEvaluator, name, &core.ActionOptions{
+	return &EvaluatorAction{
+		action: *core.NewActionOf(api.ActionTypeEvaluator, name, &core.ActionOptions{
 			Metadata:    evaluatorMetadata(opts),
 			InputSchema: inputSchema,
 		}, func(ctx context.Context, req *EvaluatorRequest) (output *EvaluatorResponse, err error) {
@@ -273,15 +283,15 @@ func NewTypedEvaluator[Config any](name string, opts *EvaluatorOptions, fn Typed
 	}
 }
 
-// NewTypedBatchEvaluator creates a new [Evaluator]. Register it with
-// [Evaluator.Register] to make it resolvable by name.
+// NewTypedBatchEvaluator creates a new [EvaluatorAction]. Register it with
+// [EvaluatorAction.Register] to make it resolvable by name.
 // This method provides the full [EvaluatorRequest] to the callback function,
 // giving more flexibility to the user for processing the data, such as batching or parallelization.
 //
 // Config is the evaluator's typed configuration; it is usually inferred from
 // fn's signature. See [NewTypedEvaluator] for how the request's options
 // are deserialized.
-func NewTypedBatchEvaluator[Config any](name string, opts *EvaluatorOptions, fn TypedBatchEvaluatorFunc[Config]) Evaluator {
+func NewTypedBatchEvaluator[Config any](name string, opts *EvaluatorOptions, fn TypedBatchEvaluatorFunc[Config]) *EvaluatorAction {
 	if name == "" {
 		panic("ai.NewTypedBatchEvaluator: batch evaluator name is required")
 	}
@@ -303,8 +313,8 @@ func NewTypedBatchEvaluator[Config any](name string, opts *EvaluatorOptions, fn 
 		return fn(ctx, req, cfg)
 	}
 
-	return &evaluator{
-		Action: *core.NewActionOf(api.ActionTypeEvaluator, name, &core.ActionOptions{
+	return &EvaluatorAction{
+		action: *core.NewActionOf(api.ActionTypeEvaluator, name, &core.ActionOptions{
 			Metadata:    evaluatorMetadata(opts),
 			InputSchema: inputSchema,
 		}, rawFn),
@@ -349,13 +359,11 @@ func LookupEvaluator(r api.Registry, name string) Evaluator {
 	if action == nil {
 		return nil
 	}
-	return &evaluator{
-		Action: *action,
-	}
+	return &EvaluatorAction{*action}
 }
 
 // Evaluate runs the given [Evaluator].
-func (e *evaluator) Evaluate(ctx context.Context, req *EvaluatorRequest) (*EvaluatorResponse, error) {
+func (e *EvaluatorAction) Evaluate(ctx context.Context, req *EvaluatorRequest) (*EvaluatorResponse, error) {
 	if e == nil {
 		return nil, core.NewError(core.INVALID_ARGUMENT, "Evaluator.Evaluate: evaluator called on a nil evaluator; check that all evaluators are defined")
 	}
