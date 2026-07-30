@@ -100,11 +100,10 @@ func resolveAction(client *genai.Client, provider string, atype api.ActionType, 
 
 // createVeoBackgroundAction creates a background model action for Veo.
 func createVeoBackgroundAction(client *genai.Client, name, provider string) api.Action {
-	opts := GetModelOptions(name, provider)
-	veoModel := newVeoModel(client, name, opts)
+	veoModel := newVeoModel(client, name, GetModelOptions(name, provider))
 	actionName := api.NewName(provider, name)
 
-	return core.NewAction(actionName, api.ActionTypeBackgroundModel, nil, nil,
+	return core.NewActionOf(api.ActionTypeBackgroundModel, actionName, nil,
 		func(ctx context.Context, input *ai.ModelRequest) (*core.Operation[*ai.ModelResponse], error) {
 			op, err := veoModel.Start(ctx, input)
 			if err != nil {
@@ -117,12 +116,12 @@ func createVeoBackgroundAction(client *genai.Client, name, provider string) api.
 
 // createVeoCheckAction creates a check operation action for Veo.
 func createVeoCheckAction(client *genai.Client, name, provider string) api.Action {
-	opts := GetModelOptions(name, provider)
-	veoModel := newVeoModel(client, name, opts)
+	veoModel := newVeoModel(client, name, GetModelOptions(name, provider))
 	actionName := api.NewName(provider, name)
 
-	return core.NewAction(actionName, api.ActionTypeCheckOperation,
-		map[string]any{"description": fmt.Sprintf("Check status of %s operation", name)}, nil,
+	return core.NewActionOf(api.ActionTypeCheckOperation, actionName, &core.ActionOptions{
+		Description: fmt.Sprintf("Check status of %s operation", name),
+	},
 		func(ctx context.Context, op *core.Operation[*ai.ModelResponse]) (*core.Operation[*ai.ModelResponse], error) {
 			updatedOp, err := veoModel.Check(ctx, op)
 			if err != nil {
