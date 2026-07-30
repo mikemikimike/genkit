@@ -70,7 +70,7 @@ func defineFakeModel(t *testing.T, r api.Registry, cfg fakeModelConfig) Model {
 			}, nil
 		}
 	}
-	return DefineModel(r, cfg.name, &ModelOptions{Supports: cfg.supports}, cfg.handler)
+	return defineModel(r, cfg.name, &ModelOptions{Supports: cfg.supports}, cfg.handler)
 }
 
 // echoModelHandler creates a handler that echoes back information about the request.
@@ -275,7 +275,7 @@ func assertNoPanic(t *testing.T, fn func()) {
 // defineFakeTool creates a simple tool for testing.
 func defineFakeTool(t *testing.T, r api.Registry, name, description string) Tool {
 	t.Helper()
-	return DefineTool(r, name, description,
+	return defineTool(r, name, description,
 		func(ctx *ToolContext, input struct {
 			Value string `json:"value"`
 		}) (string, error) {
@@ -286,7 +286,7 @@ func defineFakeTool(t *testing.T, r api.Registry, name, description string) Tool
 // defineFakeEmbedder creates a simple embedder for testing.
 func defineFakeEmbedder(t *testing.T, r api.Registry, name string) Embedder {
 	t.Helper()
-	return DefineEmbedder(r, name, nil, func(ctx context.Context, req *EmbedRequest) (*EmbedResponse, error) {
+	return defineEmbedder(r, name, nil, func(ctx context.Context, req *EmbedRequest) (*EmbedResponse, error) {
 		embeddings := make([]*Embedding, len(req.Input))
 		for i := range req.Input {
 			embeddings[i] = &Embedding{
