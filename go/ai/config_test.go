@@ -117,6 +117,30 @@ func TestModelConfigNormalizedBeforeBuiltins(t *testing.T) {
 	}
 }
 
+func TestTypedModelMetadata(t *testing.T) {
+	m := NewTypedModel("test/model-metadata",
+		&ModelOptions{
+			Metadata: map[string]any{
+				"custom": "value",
+				"model":  "caller values must not clobber the reserved keys",
+			},
+		},
+		func(ctx context.Context, req *ModelRequest, cfg testTypedConfig, cb ModelStreamCallback) (*ModelResponse, error) {
+			return &ModelResponse{Message: NewModelTextMessage("ok"), Request: req}, nil
+		})
+
+	metadata := m.Desc().Metadata
+	if got := metadata["custom"]; got != "value" {
+		t.Errorf(`Metadata["custom"] = %v, want "value"`, got)
+	}
+	if got := metadata["type"]; got != api.ActionTypeModel {
+		t.Errorf(`Metadata["type"] = %v, want %v`, got, api.ActionTypeModel)
+	}
+	if _, ok := metadata["model"].(map[string]any); !ok {
+		t.Errorf(`Metadata["model"] = %v, want the built model info map`, metadata["model"])
+	}
+}
+
 func TestTypedBackgroundModelMetadata(t *testing.T) {
 	bm := NewTypedBackgroundModel("test/bg-metadata",
 		&TypedBackgroundModelOptions{
