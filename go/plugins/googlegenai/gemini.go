@@ -30,9 +30,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/firebase/genkit/go/ai"
-	"github.com/firebase/genkit/go/core"
 	"github.com/firebase/genkit/go/core/api"
-	"github.com/firebase/genkit/go/core/status"
 	"github.com/firebase/genkit/go/internal"
 	"github.com/firebase/genkit/go/internal/base"
 	"github.com/firebase/genkit/go/plugins/internal/uri"
@@ -64,70 +62,33 @@ func configToMap(config any) map[string]any {
 	return result
 }
 
-// configFromRequest converts any supported config type to [genai.GenerateContentConfig].
-func configFromRequest(input *ai.ModelRequest) (*genai.GenerateContentConfig, error) {
-	var result genai.GenerateContentConfig
-
-	switch config := input.Config.(type) {
-	case genai.GenerateContentConfig:
-		result = config
-	case *genai.GenerateContentConfig:
-		result = *config
-	case map[string]any:
-		// TODO: Log warnings if unknown parameters are found.
-		var err error
-		result, err = base.MapToStruct[genai.GenerateContentConfig](config)
-		if err != nil {
-			return nil, status.PublicErrorf(status.ErrInvalidArgument, "The configuration settings are not in the correct format. Check that the names and values match what the model expects: %w", err)
-		}
-	case nil:
-		// Empty but valid config
-	default:
-		return nil, status.PublicErrorf(status.ErrInvalidArgument, "Invalid configuration type: %T. Expected *genai.GenerateContentConfig. Ensure you are using the correct ModelRef helper (e.g., ModelRef) or passing the correct configuration struct.", input.Config)
-	}
-
-	return &result, nil
-}
-
-// newModel creates a model without registering it.
-func newModel(client *genai.Client, name string, opts ai.ModelOptions) ai.Model {
+// newModel creates a model without registering it. The model's config type
+// follows its modality: image models take a [genai.GenerateImagesConfig],
+// everything else speaks generateContent and takes a
+// [genai.GenerateContentConfig]. The framework validates and deserializes the
+// request's config into that type before the model function runs.
+func newModel(client *genai.Client, name string, opts ai.ModelOptions) *ai.ModelAction {
 	provider := googleAIProvider
 	if client.ClientConfig().Backend == genai.BackendVertexAI {
 		provider = vertexAIProvider
 	}
 
 	mt := ClassifyModel(name)
-
 	if opts.ConfigSchema == nil {
-		if config := mt.DefaultConfig(); config != nil {
-			opts.ConfigSchema = configToMap(config)
-		}
+		opts.ConfigSchema = mt.configSchema()
 	}
 
-	meta := &ai.ModelOptions{
-		Label:        opts.Label,
-		Supports:     opts.Supports,
-		Versions:     opts.Versions,
-		ConfigSchema: opts.ConfigSchema,
-		Stage:        opts.Stage,
+	if mt == ModelTypeImagen {
+		return ai.NewModelAction(api.NewName(provider, name), &opts,
+			func(ctx context.Context, input *ai.ModelRequest, config genai.GenerateImagesConfig, cb ai.ModelStreamCallback) (*ai.ModelResponse, error) {
+				return generateImage(ctx, client, name, input, config, cb)
+			})
 	}
 
-	fn := func(
-		ctx context.Context,
-		input *ai.ModelRequest,
-		cb func(context.Context, *ai.ModelResponseChunk) error,
-	) (*ai.ModelResponse, error) {
-		switch mt {
-		case ModelTypeImagen:
-			return generateImage(ctx, client, name, input, cb)
-		default:
-			return generate(ctx, client, name, input, cb)
-		}
-	}
-
-	// the gemini api doesn't support downloading media from http(s)
-	if opts.Supports.Media {
-		fn = core.ChainMiddleware(ai.DownloadRequestMedia(&ai.DownloadMediaOptions{
+	// The gemini api doesn't support downloading media from http(s).
+	var download ai.ModelMiddleware
+	if opts.Supports != nil && opts.Supports.Media {
+		download = ai.DownloadRequestMedia(&ai.DownloadMediaOptions{
 			MaxBytes: 1024 * 1024 * 20, // 20MB
 			Filter: func(part *ai.Part) bool {
 				u, err := url.Parse(part.Text)
@@ -143,9 +104,19 @@ func newModel(client *genai.Client, name string, opts ai.ModelOptions) ai.Model 
 					u.Hostname(),
 				)
 			},
-		}))(fn)
+		})
 	}
-	return ai.NewModel(api.NewName(provider, name), meta, fn)
+
+	return ai.NewModelAction(api.NewName(provider, name), &opts,
+		func(ctx context.Context, input *ai.ModelRequest, config genai.GenerateContentConfig, cb ai.ModelStreamCallback) (*ai.ModelResponse, error) {
+			fn := func(ctx context.Context, input *ai.ModelRequest, cb ai.ModelStreamCallback) (*ai.ModelResponse, error) {
+				return generate(ctx, client, name, input, config, cb)
+			}
+			if download != nil {
+				fn = download(fn)
+			}
+			return fn(ctx, input, cb)
+		})
 }
 
 // resolveVertexModelName prepares a model name for the google.golang.org/genai
@@ -175,6 +146,7 @@ func generate(
 	client *genai.Client,
 	model string,
 	input *ai.ModelRequest,
+	config genai.GenerateContentConfig,
 	cb func(context.Context, *ai.ModelResponseChunk) error,
 ) (*ai.ModelResponse, error) {
 	if model == "" {
@@ -187,7 +159,7 @@ func generate(
 		return nil, err
 	}
 
-	gcc, err := toGeminiRequest(input, cache, model)
+	gcc, err := toGeminiRequest(input, config, cache, model)
 	if err != nil {
 		return nil, err
 	}
@@ -319,13 +291,14 @@ func toGeminiRole(role ai.Role) string {
 	}
 }
 
-// toGeminiRequest translates an [*ai.ModelRequest] to
-// *genai.GenerateContentConfig
-func toGeminiRequest(input *ai.ModelRequest, cache *genai.CachedContent, modelName ...string) (*genai.GenerateContentConfig, error) {
-	gcc, err := configFromRequest(input)
-	if err != nil {
-		return nil, err
-	}
+// toGeminiRequest folds an [*ai.ModelRequest] into the config the framework
+// deserialized for the request, and returns the result to send to the API.
+// The Genkit primitives (system prompt, tools, cache, output schema) own the
+// equivalent config fields, so setting those directly is rejected. config is
+// taken by value: the request's own copy is what gets amended, never the
+// caller's.
+func toGeminiRequest(input *ai.ModelRequest, config genai.GenerateContentConfig, cache *genai.CachedContent, modelName ...string) (*genai.GenerateContentConfig, error) {
+	gcc := &config
 
 	isTTS := len(modelName) > 0 && isTTSModelName(modelName[0])
 

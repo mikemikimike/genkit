@@ -31,20 +31,12 @@ func listActions(ctx context.Context, client *genai.Client, provider string) []a
 
 	// Gemini models
 	for _, name := range models.gemini {
-		opts := GetModelOptions(name, provider)
-		model := newModel(client, name, opts)
-		if action, ok := model.(api.Action); ok {
-			actions = append(actions, action.Desc())
-		}
+		actions = append(actions, newModel(client, name, GetModelOptions(name, provider)).Desc())
 	}
 
 	// Imagen models
 	for _, name := range models.imagen {
-		opts := GetModelOptions(name, provider)
-		model := newModel(client, name, opts)
-		if action, ok := model.(api.Action); ok {
-			actions = append(actions, action.Desc())
-		}
+		actions = append(actions, newModel(client, name, GetModelOptions(name, provider)).Desc())
 	}
 
 	// Veo models (background models)
@@ -85,8 +77,7 @@ func resolveAction(client *genai.Client, provider string, atype api.ActionType, 
 		if mt == ModelTypeVeo {
 			return nil
 		}
-		opts := GetModelOptions(name, provider)
-		return newModel(client, name, opts).(api.Action)
+		return newModel(client, name, GetModelOptions(name, provider))
 
 	// A background model is a bundle: registering it registers both its start
 	// and check actions, so the same value resolves either key. The registry

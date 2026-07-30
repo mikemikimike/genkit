@@ -20,74 +20,62 @@ import (
 	"testing"
 
 	"github.com/firebase/genkit/go/ai"
+	"github.com/firebase/genkit/go/internal/base"
 	"google.golang.org/genai"
 )
 
-func TestImagenConfigFromRequest(t *testing.T) {
+// TestImagenConfigType pins the config type image models are defined with.
+// The framework deserializes the request's config into it and rejects
+// anything else, so the plugin no longer converts configs itself.
+func TestImagenConfigType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
-		request     *ai.ModelRequest
+		raw         any
+		want        genai.GenerateImagesConfig
 		expectError bool
 	}{
 		{
-			name: "valid config struct pointer",
-			request: &ai.ModelRequest{
-				Config: &genai.GenerateImagesConfig{
-					NumberOfImages: 2,
-				},
-			},
-			expectError: false,
+			name: "config struct pointer",
+			raw:  &genai.GenerateImagesConfig{NumberOfImages: 2},
+			want: genai.GenerateImagesConfig{NumberOfImages: 2},
 		},
 		{
-			name: "valid config struct value",
-			request: &ai.ModelRequest{
-				Config: genai.GenerateImagesConfig{
-					NumberOfImages: 1,
-				},
-			},
-			expectError: false,
+			name: "config struct value",
+			raw:  genai.GenerateImagesConfig{NumberOfImages: 1},
+			want: genai.GenerateImagesConfig{NumberOfImages: 1},
 		},
 		{
-			name: "valid map config",
-			request: &ai.ModelRequest{
-				Config: map[string]any{
-					"numberOfImages": 4,
-				},
-			},
-			expectError: false,
+			name: "map config",
+			raw:  map[string]any{"numberOfImages": 4},
+			want: genai.GenerateImagesConfig{NumberOfImages: 4},
 		},
 		{
 			name: "nil config",
-			request: &ai.ModelRequest{
-				Config: nil,
-			},
-			expectError: false,
+			raw:  nil,
+			want: genai.GenerateImagesConfig{},
 		},
 		{
-			name: "invalid config type",
-			request: &ai.ModelRequest{
-				Config: &genai.GenerateContentConfig{},
-			},
+			name:        "another model's config",
+			raw:         &genai.GenerateContentConfig{},
 			expectError: true,
 		},
 		{
-			name: "invalid map values",
-			request: &ai.ModelRequest{
-				Config: map[string]any{
-					"numberOfImages": "not-a-number",
-				},
-			},
+			name:        "map with a mistyped value",
+			raw:         map[string]any{"numberOfImages": "not-a-number"},
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := imagenConfigFromRequest(tt.request)
+			got, err := base.ConvertToExact[genai.GenerateImagesConfig](tt.raw)
 			if (err != nil) != tt.expectError {
-				t.Errorf("imagenConfigFromRequest() error = %v, expectError %v", err, tt.expectError)
+				t.Fatalf("ConvertToExact() error = %v, expectError %v", err, tt.expectError)
+			}
+			if err == nil && got.NumberOfImages != tt.want.NumberOfImages {
+				t.Errorf("ConvertToExact() NumberOfImages = %d, want %d", got.NumberOfImages, tt.want.NumberOfImages)
 			}
 		})
 	}
