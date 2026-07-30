@@ -62,10 +62,7 @@ func listActions(ctx context.Context, client *genai.Client, provider string) []a
 	// Embedders
 	for _, name := range models.embedders {
 		opts := GetEmbedderOptions(name, provider)
-		embedder := newEmbedder(client, name, &opts)
-		if actionDef, ok := embedder.(api.Action); ok {
-			actions = append(actions, actionDef.Desc())
-		}
+		actions = append(actions, newEmbedder(client, name, &opts).Desc())
 	}
 
 	return actions
@@ -88,7 +85,7 @@ func resolveAction(client *genai.Client, provider string, atype api.ActionType, 
 	switch atype {
 	case api.ActionTypeEmbedder:
 		opts := GetEmbedderOptions(name, provider)
-		return newEmbedder(client, name, &opts).(api.Action)
+		return newEmbedder(client, name, &opts)
 
 	case api.ActionTypeModel:
 		// Veo models should not be resolved as regular models
