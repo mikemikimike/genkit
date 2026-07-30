@@ -52,11 +52,7 @@ func listActions(ctx context.Context, client *genai.Client, provider string) []a
 
 	// Veo models (background models)
 	for _, name := range models.veo {
-		opts := GetModelOptions(name, provider)
-		veoModel := newVeoModel(client, name, opts)
-		if actionDef, ok := veoModel.(api.Action); ok {
-			actions = append(actions, actionDef.Desc())
-		}
+		actions = append(actions, newVeoModel(client, name, GetModelOptions(name, provider)).Desc())
 	}
 
 	// Embedders

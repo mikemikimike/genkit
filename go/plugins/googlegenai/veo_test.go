@@ -21,6 +21,7 @@ import (
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core"
+	"github.com/firebase/genkit/go/internal/base"
 	"google.golang.org/genai"
 )
 
@@ -165,62 +166,52 @@ func TestExtractVeoImageFromRequest(t *testing.T) {
 	}
 }
 
-func TestToVeoParameters(t *testing.T) {
+// TestVeoConfigType pins the config type Veo models are defined with. The
+// framework deserializes the request's config into it and rejects anything
+// else, so the plugin no longer converts configs itself.
+func TestVeoConfigType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
-		request     *ai.ModelRequest
+		raw         any
 		expected    genai.GenerateVideosConfig
 		expectError bool
 	}{
 		{
-			name: "request with no config",
-			request: &ai.ModelRequest{
-				Config: nil,
-			},
-			expected:    genai.GenerateVideosConfig{},
-			expectError: false,
+			name:     "no config",
+			raw:      nil,
+			expected: genai.GenerateVideosConfig{},
 		},
 		{
-			name: "request with valid GenerateVideosConfig",
-			request: &ai.ModelRequest{
-				Config: &genai.GenerateVideosConfig{
-					AspectRatio:      "16:9",
-					DurationSeconds:  genai.Ptr(int32(5)),
-					PersonGeneration: "allow_adult",
-				},
+			name: "GenerateVideosConfig pointer",
+			raw: &genai.GenerateVideosConfig{
+				AspectRatio:      "16:9",
+				DurationSeconds:  genai.Ptr(int32(5)),
+				PersonGeneration: "allow_adult",
 			},
 			expected: genai.GenerateVideosConfig{
 				AspectRatio:      "16:9",
 				DurationSeconds:  genai.Ptr(int32(5)),
 				PersonGeneration: "allow_adult",
 			},
-			expectError: false,
 		},
 		{
-			name: "request with valid map config",
-			request: &ai.ModelRequest{
-				Config: map[string]any{
-					"aspectRatio":      "16:9",
-					"durationSeconds":  5,
-					"personGeneration": "allow_adult",
-				},
+			name: "map config",
+			raw: map[string]any{
+				"aspectRatio":      "16:9",
+				"durationSeconds":  5,
+				"personGeneration": "allow_adult",
 			},
 			expected: genai.GenerateVideosConfig{
 				AspectRatio:      "16:9",
 				DurationSeconds:  genai.Ptr(int32(5)),
 				PersonGeneration: "allow_adult",
 			},
-			expectError: false,
 		},
 		{
-			name: "request with different config type",
-			request: &ai.ModelRequest{
-				Config: &genai.GenerateContentConfig{
-					MaxOutputTokens: int32(100),
-				},
-			},
+			name:        "another model's config",
+			raw:         &genai.GenerateContentConfig{MaxOutputTokens: int32(100)},
 			expected:    genai.GenerateVideosConfig{},
 			expectError: true,
 		},
@@ -228,36 +219,36 @@ func TestToVeoParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := toVeoParameters(tt.request)
+			result, err := base.ConvertToExact[genai.GenerateVideosConfig](tt.raw)
 
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("toVeoParameters() expected error but got nil")
+					t.Errorf("ConvertToExact() expected error but got nil")
 				}
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("toVeoParameters() unexpected error: %v", err)
+				t.Fatalf("ConvertToExact() unexpected error: %v", err)
 			}
 
 			// Compare AspectRatio
 			if result.AspectRatio != tt.expected.AspectRatio {
-				t.Errorf("toVeoParameters() AspectRatio = %q, want %q", result.AspectRatio, tt.expected.AspectRatio)
+				t.Errorf("ConvertToExact() AspectRatio = %q, want %q", result.AspectRatio, tt.expected.AspectRatio)
 			}
 
 			// Compare DurationSeconds pointers
 			if (result.DurationSeconds == nil) != (tt.expected.DurationSeconds == nil) {
-				t.Errorf("toVeoParameters() DurationSeconds nil mismatch: got %v, want %v", result.DurationSeconds, tt.expected.DurationSeconds)
+				t.Errorf("ConvertToExact() DurationSeconds nil mismatch: got %v, want %v", result.DurationSeconds, tt.expected.DurationSeconds)
 			} else if result.DurationSeconds != nil && tt.expected.DurationSeconds != nil {
 				if *result.DurationSeconds != *tt.expected.DurationSeconds {
-					t.Errorf("toVeoParameters() DurationSeconds = %v, want %v", *result.DurationSeconds, *tt.expected.DurationSeconds)
+					t.Errorf("ConvertToExact() DurationSeconds = %v, want %v", *result.DurationSeconds, *tt.expected.DurationSeconds)
 				}
 			}
 
 			// Compare PersonGeneration
 			if result.PersonGeneration != tt.expected.PersonGeneration {
-				t.Errorf("toVeoParameters() PersonGeneration = %q, want %q", result.PersonGeneration, tt.expected.PersonGeneration)
+				t.Errorf("ConvertToExact() PersonGeneration = %q, want %q", result.PersonGeneration, tt.expected.PersonGeneration)
 			}
 		})
 	}
