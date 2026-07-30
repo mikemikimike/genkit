@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"syscall"
 
 	"github.com/firebase/genkit/go/ai"
@@ -362,7 +363,9 @@ func LookupAction(g *Genkit, key string) api.Action {
 //	}
 //	fmt.Println(result) // Output: Hello, World!
 func DefineFlow[In, Out any](g *Genkit, name string, fn core.Func[In, Out]) *core.Flow[In, Out, struct{}] {
-	return core.DefineFlow(g.reg, name, fn)
+	f := core.NewFlow(name, fn)
+	f.Register(g.reg)
+	return f
 }
 
 // DefineStreamingFlow defines a streaming flow, registers it as a [core.Action] of type Flow,
@@ -413,7 +416,9 @@ func DefineFlow[In, Out any](g *Genkit, name string, fn core.Func[In, Out]) *cor
 //		}
 //	}
 func DefineStreamingFlow[In, Out, Stream any](g *Genkit, name string, fn core.StreamingFunc[In, Out, Stream]) *core.Flow[In, Out, Stream] {
-	return core.DefineStreamingFlow(g.reg, name, fn)
+	f := core.NewStreamingFlow(name, fn)
+	f.Register(g.reg)
+	return f
 }
 
 // NewFlow creates a [core.Flow] without registering it as an action.
@@ -934,7 +939,7 @@ func LookupPrompt(g *Genkit, name string) ai.Prompt {
 //
 //	genkit.Generate(ctx, g, ai.WithOutputSchemaName("User"), ai.WithPrompt("What is your name?"))
 func DefineSchema(g *Genkit, name string, schema map[string]any) {
-	core.DefineSchema(g.reg, name, schema)
+	g.reg.RegisterSchema(name, schema)
 }
 
 // DefineSchemaFor defines a named JSON schema derived from a Go type
@@ -953,7 +958,12 @@ func DefineSchema(g *Genkit, name string, schema map[string]any) {
 //
 //	genkit.Generate(ctx, g, ai.WithOutputSchemaName("User"), ai.WithPrompt("What is your name?"))
 func DefineSchemaFor[T any](g *Genkit) {
-	core.DefineSchemaFor[T](g.reg)
+	var v T
+	t := reflect.TypeOf(v)
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	g.reg.RegisterSchema(t.Name(), core.InferSchemaMap(v))
 }
 
 // DefineDataPrompt creates a new [ai.DataPrompt] with strongly-typed input and output.
