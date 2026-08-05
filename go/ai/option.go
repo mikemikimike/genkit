@@ -946,6 +946,9 @@ type ToolOption interface {
 
 // applyTool applies the option to the tool options.
 func (o *toolOptions) applyTool(opts *toolOptions) {
+	if o.OutputSchema != nil {
+		opts.OutputSchema = o.OutputSchema
+	}
 	if o.StrictSchema != nil {
 		opts.StrictSchema = o.StrictSchema
 	}
